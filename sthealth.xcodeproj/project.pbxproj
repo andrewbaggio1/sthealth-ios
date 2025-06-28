@@ -35,16 +35,6 @@
 			path = sthealth;
 			sourceTree = "<group>";
 		};
-		493429CF2E05DA8C00DAC681 /* sthealthTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = sthealthTests;
-			sourceTree = "<group>";
-		};
-		493429D92E05DA8C00DAC681 /* sthealthUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = sthealthUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,8 +66,6 @@
 			isa = PBXGroup;
 			children = (
 				493429BF2E05DA8A00DAC681 /* sthealth */,
-				493429CF2E05DA8C00DAC681 /* sthealthTests */,
-				493429D92E05DA8C00DAC681 /* sthealthUITests */,
 				493429BE2E05DA8A00DAC681 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,9 +118,6 @@
 			dependencies = (
 				493429CE2E05DA8C00DAC681 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				493429CF2E05DA8C00DAC681 /* sthealthTests */,
-			);
 			name = sthealthTests;
 			packageProductDependencies = (
 			);
@@ -153,9 +138,6 @@
 			dependencies = (
 				493429D82E05DA8C00DAC681 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				493429D92E05DA8C00DAC681 /* sthealthUITests */,
-			);
 			name = sthealthUITests;
 			packageProductDependencies = (
 			);
@@ -175,6 +157,7 @@
 				TargetAttributes = {
 					493429BC2E05DA8A00DAC681 = {
 						CreatedOnToolsVersion = 16.4;
+						LastSwiftMigration = 1640;
 					};
 					493429CB2E05DA8C00DAC681 = {
 						CreatedOnToolsVersion = 16.4;
@@ -395,11 +378,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JJ2N9XZT62;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Access your calendar to understand how events and schedules affect your\n  mental state";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to securely protect your personal cognitive insights and data.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to provide contextual insights about your cognitive\n  patterns and environments.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice memos and capture audio reflections for richer cognitive\n  analysis.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Convert speech to text for hands-free cognitive reflection and journaling.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -413,6 +403,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.andrewbaggio.sthealth;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -423,11 +414,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = JJ2N9XZT62;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Access your calendar to understand how events and schedules affect your\n  mental state";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to securely protect your personal cognitive insights and data.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your location to provide contextual insights about your cognitive\n  patterns and environments.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice memos and capture audio reflections for richer cognitive\n  analysis.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Convert speech to text for hands-free cognitive reflection and journaling.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
