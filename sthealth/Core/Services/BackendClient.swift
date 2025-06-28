@@ -313,6 +313,73 @@ final class BackendClient {
     ) async throws -> T {
         return try await makeRequest(endpoint: endpoint, method: method, body: EmptyBody?.none, requiresAuth: requiresAuth)
     }
+    
+    // MARK: - Weekly Summary Methods
+    
+    func fetchWeeklySummaryData(startDate: Date, endDate: Date) async throws -> WeeklySummaryData {
+        // Mock implementation for now
+        return WeeklySummaryData(
+            totalReflections: 14,
+            totalWords: 2847,
+            longestReflection: 523,
+            totalInsights: 28,
+            cardsSwipedRight: 42,
+            cardsSwipedLeft: 15,
+            workshopSessions: 3,
+            dailyActivity: [2, 3, 1, 4, 2, 1, 1], // Sun-Sat
+            hourlyActivity: ["8": 3, "12": 5, "18": 4, "21": 2],
+            dailySentiment: [0.3, 0.5, -0.2, 0.7, 0.4, 0.1, 0.6],
+            dailyEngagement: [0.8, 0.9, 0.5, 1.0, 0.7, 0.4, 0.6]
+        )
+    }
+    
+    func fetchLatestWeeklySummary() async throws -> WeeklySummary? {
+        // This would fetch from backend - for now return nil
+        return nil
+    }
+    
+    func storeWeeklySummary(_ summary: WeeklySummary) async throws {
+        let payload: [String: Any] = [
+            "week_start": ISO8601DateFormatter().string(from: summary.weekStartDate),
+            "week_end": ISO8601DateFormatter().string(from: summary.weekEndDate),
+            "metrics": [
+                "total_reflections": summary.totalReflections,
+                "total_words": summary.totalWords,
+                "insights_generated": summary.totalInsightsGenerated,
+                "cards_swiped_right": summary.cardsSwipedRight,
+                "cards_swiped_left": summary.cardsSwipedLeft,
+                "workshop_sessions": summary.workshopSessionsCompleted
+            ],
+            "patterns": [
+                "emotional_themes": summary.primaryEmotionalThemes,
+                "recurring_themes": summary.recurringThemes,
+                "emerging_patterns": summary.emergingPatterns
+            ],
+            "narrative": summary.summaryNarrative,
+            "encouragement": summary.encouragementMessage
+        ]
+        
+        let dataPoint = DataPointCreate(
+            data_type: "weekly_summary",
+            source: "app_generated",
+            payload: payload
+        )
+        
+        _ = try await submitDataPoints([dataPoint])
+    }
+    
+    // MARK: - Profile Stats Methods
+    
+    func fetchUserStats() async throws -> UserStats {
+        // Mock implementation for now
+        return UserStats(
+            totalReflections: 42,
+            totalInsights: 156,
+            currentStreak: 7,
+            longestStreak: 14,
+            lastReflectionDate: ISO8601DateFormatter().string(from: Date())
+        )
+    }
 }
 
 // MARK: - Request/Response Models for Moment
@@ -362,3 +429,13 @@ enum BackendError: Error, LocalizedError {
 // MARK: - Helper Types
 
 private struct EmptyBody: Codable {}
+
+// MARK: - User Stats Model
+
+struct UserStats: Codable {
+    let totalReflections: Int
+    let totalInsights: Int
+    let currentStreak: Int
+    let longestStreak: Int
+    let lastReflectionDate: String?
+}

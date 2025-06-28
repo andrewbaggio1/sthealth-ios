@@ -49,7 +49,7 @@ struct OnboardingView: View {
             case .splash:
                 SplashView()
                     .onAppear {
-                        startSplashTimer()
+                        checkExistingAuth()
                     }
                     
             case .nameInput:
@@ -85,15 +85,33 @@ struct OnboardingView: View {
                 }
                 
             case .authentication:
-                AuthenticationView {
-                    requestBiometricAuthentication()
-                }
+                AuthenticationView(
+                    onAuthenticate: requestBiometricAuthentication,
+                    completeOnboarding: completeOnboarding
+                )
             
             case .completed:
                 EmptyView()
             }
         }
         .animation(.easeInOut(duration: 0.5), value: currentState)
+        .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated && currentState == .nameInput {
+                // Skip onboarding for returning users
+                completeOnboarding()
+            }
+        }
+    }
+    
+    private func checkExistingAuth() {
+        // Check if user is already authenticated
+        if authManager.isAuthenticated {
+            // User is already logged in, skip onboarding
+            completeOnboarding()
+        } else {
+            // New user or logged out, proceed with onboarding
+            startSplashTimer()
+        }
     }
     
     private func startSplashTimer() {
@@ -176,6 +194,10 @@ struct OnboardingView: View {
     private func completeOnboarding() {
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         hasCompletedOnboarding = true
+        // Ensure we properly dismiss the onboarding
+        DispatchQueue.main.async {
+            self.hasCompletedOnboarding = true
+        }
     }
 }
 
@@ -211,17 +233,10 @@ struct SplashView: View {
                 .scaleEffect(logoScale)
                 .opacity(logoOpacity)
                 
-                VStack(spacing: 8) {
-                    Text("sthealth")
-                        .font(.appleTitle)
-                        .fontWeight(.thin)
-                        .foregroundColor(.primaryText)
-                    
-                    Text("Cognitive Wellness")
-                        .font(.appleSubheadline)
-                        .fontWeight(.regular)
-                        .foregroundColor(.secondaryText)
-                }
+                Text("sthealth")
+                    .font(.system(size: 36, weight: .thin, design: .rounded))
+                    .foregroundColor(.primaryText)
+                    .tracking(1.2)
                 .opacity(logoOpacity)
             }
             
@@ -241,52 +256,82 @@ struct NameInputView: View {
     @ObservedObject var authManager: AuthenticationManager
     let onSubmit: () -> Void
     @FocusState private var isTextFieldFocused: Bool
+    @State private var isCheckingUser = false
     
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
             
-            VStack(spacing: 48) {
-                VStack(spacing: 16) {
-                    Text("Welcome to sthealth")
-                        .font(.appleLargeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primaryText)
-                        .multilineTextAlignment(.center)
+            VStack(spacing: 40) {
+                VStack(spacing: 24) {
+                    // Glass logo
+                    ZStack {
+                        Circle()
+                            .fill(GlassMaterial.primary)
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.glassBorder, lineWidth: 0.5)
+                            )
+                            .shadow(
+                                color: .glassShadow.opacity(0.2),
+                                radius: 15,
+                                x: 0,
+                                y: 8
+                            )
+                        
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 44, weight: .ultraLight))
+                            .foregroundColor(.primaryAccent)
+                    }
                     
-                    Text("Let's start your cognitive wellness journey")
-                        .font(.appleHeadline)
-                        .fontWeight(.regular)
-                        .foregroundColor(.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                    Text("sthealth")
+                        .font(.system(size: 32, weight: .thin, design: .rounded))
+                        .foregroundColor(.primaryText)
+                        .tracking(1.2)
                 }
                 
                 VStack(spacing: 32) {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 16) {
                         Text("What should we call you?")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.black)
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.primaryText)
                         
                         TextField("First Name", text: $userName)
                             .textFieldStyle(PlainTextFieldStyle())
-                            .font(.appleBody)
+                            .font(.system(size: 18, weight: .regular))
+                            .foregroundColor(.primaryText)
+                            .multilineTextAlignment(.center)
                             .padding(.vertical, 16)
                             .padding(.horizontal, 20)
                             .background(
                                 ZStack {
-                                    GlassStyle.glassCard(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Color.white.opacity(0.9))
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 14)
+                                                .fill(GlassMaterial.primary)
+                                        )
                                     
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 14)
                                         .fill(
                                             LinearGradient(
-                                                colors: [.glassHighlight, .clear],
+                                                colors: [.glassHighlight.opacity(0.3), .clear],
                                                 startPoint: .topLeading,
                                                 endPoint: .bottomTrailing
                                             )
                                         )
                                 }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.glassBorder, lineWidth: 0.5)
+                            )
+                            .shadow(
+                                color: .glassShadow.opacity(0.15),
+                                radius: 10,
+                                x: 0,
+                                y: 5
                             )
                             .focused($isTextFieldFocused)
                             .onSubmit {
@@ -295,17 +340,17 @@ struct NameInputView: View {
                                 }
                             }
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, 60)
                     
                     Button("Continue") {
                         onSubmit()
                     }
-                    .disabled(userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || authManager.isLoading)
+                    .disabled(userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || authManager.isLoading || isCheckingUser)
                     .buttonStyle(GlassButtonStyle())
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, 60)
                     
-                    if authManager.isLoading {
-                        ProgressView("Registering...")
+                    if authManager.isLoading || isCheckingUser {
+                        ProgressView(isCheckingUser ? "Checking..." : "Registering...")
                             .padding(.top, 16)
                     }
                     
@@ -325,6 +370,16 @@ struct NameInputView: View {
         }
         .onAppear {
             isTextFieldFocused = true
+            // Check if there's a stored username
+            if let storedName = UserDefaults.standard.string(forKey: "userName") {
+                userName = storedName
+                isCheckingUser = true
+                // Try to login with existing credentials
+                Task {
+                    await authManager.login()
+                    isCheckingUser = false
+                }
+            }
         }
     }
 }
@@ -341,21 +396,35 @@ struct PermissionView: View {
             
             VStack(spacing: 48) {
                 VStack(spacing: 24) {
-                    Image(systemName: icon)
-                        .font(.system(size: 80, weight: .thin))
-                        .foregroundColor(.blue)
+                    ZStack {
+                        Circle()
+                            .fill(GlassMaterial.primary)
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.glassBorder, lineWidth: 0.5)
+                            )
+                            .shadow(
+                                color: .glassShadow.opacity(0.2),
+                                radius: 15,
+                                x: 0,
+                                y: 8
+                            )
+                        
+                        Image(systemName: icon)
+                            .font(.system(size: 44, weight: .ultraLight))
+                            .foregroundColor(.primaryAccent)
+                    }
                     
                     VStack(spacing: 16) {
                         Text(title)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.black)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundColor(.primaryText)
                             .multilineTextAlignment(.center)
                         
                         Text(description)
-                            .font(.title3)
-                            .fontWeight(.regular)
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundColor(.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .padding(.horizontal, 32)
@@ -383,6 +452,7 @@ struct PermissionView: View {
 
 struct AuthenticationView: View {
     let onAuthenticate: () -> Void
+    let completeOnboarding: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -390,31 +460,52 @@ struct AuthenticationView: View {
             
             VStack(spacing: 48) {
                 VStack(spacing: 24) {
-                    Image(systemName: "faceid")
-                        .font(.system(size: 80, weight: .thin))
-                        .foregroundColor(.blue)
+                    ZStack {
+                        Circle()
+                            .fill(GlassMaterial.primary)
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.glassBorder, lineWidth: 0.5)
+                            )
+                            .shadow(
+                                color: .glassShadow.opacity(0.2),
+                                radius: 15,
+                                x: 0,
+                                y: 8
+                            )
+                        
+                        Image(systemName: "faceid")
+                            .font(.system(size: 44, weight: .ultraLight))
+                            .foregroundColor(.primaryAccent)
+                    }
                     
                     VStack(spacing: 16) {
                         Text("Secure Your Data")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.black)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundColor(.primaryText)
                             .multilineTextAlignment(.center)
                         
                         Text("Your cognitive insights are deeply personal. Let's secure them with biometric authentication.")
-                            .font(.title3)
-                            .fontWeight(.regular)
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 16, weight: .regular))
+                            .foregroundColor(.secondaryText)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                             .padding(.horizontal, 32)
                     }
                 }
                 
-                Button("Enable Security") {
-                    onAuthenticate()
+                VStack(spacing: 16) {
+                    Button("Enable Security") {
+                        onAuthenticate()
+                    }
+                    .buttonStyle(GlassButtonStyle())
+                    
+                    Button("Skip for Now") {
+                        completeOnboarding()
+                    }
+                    .buttonStyle(GlassSecondaryButtonStyle())
                 }
-                .buttonStyle(GlassButtonStyle())
                 .padding(.horizontal, 40)
             }
             

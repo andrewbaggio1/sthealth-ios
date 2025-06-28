@@ -72,48 +72,43 @@ struct SynapseCardView: View {
             )
             
             // Card content
-            VStack(spacing: 20) {
+            VStack(spacing: 0) {
                 // Header with icon
-                VStack(spacing: 8) {
+                HStack {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(.white.opacity(0.95))
-                    
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
                     Text("Insight")
-                        .font(.appleCaption)
-                        .fontWeight(.semibold)
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white.opacity(0.85))
                         .textCase(.uppercase)
-                        .tracking(1.2)
+                        .tracking(0.8)
                 }
-                
-                Spacer()
+                .padding(.bottom, 12)
                 
                 // Main question text
-                VStack(spacing: 16) {
+                VStack(spacing: 8) {
                     Text(hypothesis.question_text)
-                        .font(.appleHeadline)
-                        .fontWeight(.medium)
+                        .font(.system(size: 19, weight: .medium))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .lineLimit(6)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 8)
-                        .lineSpacing(2)
+                        .minimumScaleFactor(0.85)
+                        .lineSpacing(4)
+                        .frame(maxHeight: .infinity)
                     
                     // Emotion tags
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         EmotionTag(emotion: primaryEmotion, isPrimary: true)
                         EmotionTag(emotion: secondaryEmotion, isPrimary: false)
                     }
+                    .padding(.top, 8)
                 }
-                
-                Spacer()
             }
-            .padding(.vertical, 28)
-            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
         }
-        .frame(width: 320, height: 420)
+        .frame(width: UIScreen.main.bounds.width - 120, height: 300)
         .onAppear {
             isShimmering = true
         }
@@ -127,10 +122,10 @@ struct EmotionTag: View {
     
     var body: some View {
         Text(emotion.capitalized)
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
             .foregroundColor(isPrimary ? .white : .white.opacity(0.85))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .background(
                 Capsule()
                     .fill(.white.opacity(isPrimary ? 0.25 : 0.15))

@@ -13,6 +13,7 @@ class CaptureViewModel: ObservableObject {
     private let cognitiveEngine = CognitiveEngine.shared
     private let intelligentMinter = IntelligentCardMinter.shared
     private let engagementTracker = EngagementTracker.shared
+    private let analyticsTracker = AnalyticsTracker.shared
     
     // Track if user has seen initial calibration cards
     private var hasSeenInitialCards: Bool {
@@ -131,6 +132,9 @@ class CaptureViewModel: ObservableObject {
             intensity: 0.2  // Dismissed
         )
         
+        // Track analytics
+        analyticsTracker.track(.cardSwiped(hypothesisId: "\(hypothesis.id)", direction: "left", hesitationTime: 0))
+        
         // Send feedback to backend: user disagrees with this insight
         Task {
             await submitFeedback(for: hypothesis, action: "denied")
@@ -146,6 +150,9 @@ class CaptureViewModel: ObservableObject {
             type: .complete,
             intensity: 0.8  // Confirmed
         )
+        
+        // Track analytics
+        analyticsTracker.track(.cardSwiped(hypothesisId: "\(hypothesis.id)", direction: "right", hesitationTime: 0))
         
         // Send feedback to backend: user agrees with this insight
         Task {
@@ -179,6 +186,9 @@ class CaptureViewModel: ObservableObject {
             intensity: 1.0  // Maximum engagement - wants to explore deeper
         )
         
+        // Track analytics
+        analyticsTracker.track(.cardWorkshopTriggered(hypothesisId: "\(hypothesis.id)"))
+        
         // Submit feedback for analytics
         Task {
             await submitFeedback(for: hypothesis, action: "explore_deeper")
@@ -188,10 +198,12 @@ class CaptureViewModel: ObservableObject {
     
     func recordCardHesitation(hypothesis: Hypothesis, hesitationTime: TimeInterval) {
         engagementTracker.recordCardHesitation(cardId: "\(hypothesis.id)", hesitationTime: hesitationTime)
+        analyticsTracker.track(.cardSwiped(hypothesisId: "\(hypothesis.id)", direction: "hesitated", hesitationTime: hesitationTime))
     }
     
     func recordCardReconsideration(hypothesis: Hypothesis, rereadCount: Int) {
         engagementTracker.recordCardReconsideration(cardId: "\(hypothesis.id)", rereadCount: rereadCount)
+        analyticsTracker.track(.cardReturned(hypothesisId: "\(hypothesis.id)", returnCount: rereadCount))
     }
     
     private func submitFeedback(for hypothesis: Hypothesis, action: String) async {

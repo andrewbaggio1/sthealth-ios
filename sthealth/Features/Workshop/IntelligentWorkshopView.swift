@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+@preconcurrency import Combine
 
 struct IntelligentWorkshopView: View {
     @Environment(\.dismiss) private var dismiss
@@ -34,6 +35,12 @@ struct IntelligentWorkshopView: View {
                 .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    // Display the card at the top
+                    SynapseCardView(hypothesis: hypothesis)
+                        .scaleEffect(0.85)
+                        .padding(.top, 10)
+                        .padding(.bottom, 8)
+                    
                     // Session progress indicator
                     if workshopEngine.isSessionActive {
                         sessionProgressHeader

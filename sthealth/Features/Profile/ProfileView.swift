@@ -5,9 +5,11 @@ import SwiftData
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ProfileViewModel()
+    @StateObject private var summaryEngine = WeeklySummaryEngine.shared
     @State private var showingDeleteConfirmation = false
     @State private var showingLogoutConfirmation = false
     @State private var deleteConfirmationText = ""
+    @State private var showingWeeklySummary = false
     
     private var userName: String {
         UserDefaults.standard.string(forKey: "userName") ?? "User"
@@ -20,8 +22,26 @@ struct ProfileView: View {
                     // Profile Header
                     profileHeader
                     
+                    // Weekly Summary (always show if available)
+                    if summaryEngine.currentWeeklySummary != nil {
+                        weeklySummaryCard
+                    }
+                    
                     // Settings Sections
                     VStack(spacing: 20) {
+                        // Compass Settings
+                        settingsSection(
+                            title: "Compass",
+                            icon: "location.north.circle.fill"
+                        ) {
+                            SettingsRow(
+                                title: "My Values & Goals",
+                                subtitle: "Manage your personal compass",
+                                icon: "heart.circle.fill",
+                                action: { /* Navigation handled by tab */ }
+                            )
+                        }
+                        
                         // Privacy & Security
                         settingsSection(
                             title: "Privacy & Security",
@@ -211,6 +231,11 @@ struct ProfileView: View {
         } message: {
             Text("Are you sure you want to sign out? Your data will remain secure on this device.")
         }
+        .sheet(isPresented: $showingWeeklySummary) {
+            if let summary = summaryEngine.currentWeeklySummary {
+                WeeklySummaryView(summary: summary)
+            }
+        }
     }
     
     private var profileHeader: some View {
@@ -249,6 +274,102 @@ struct ProfileView: View {
             }
         }
         .padding(.vertical, 20)
+    }
+    
+    private var weeklySummaryCard: some View {
+        VStack(spacing: 4) {
+            // Golden weekly summary card matching nudge style
+            Button(action: { showingWeeklySummary = true }) {
+                HStack(spacing: 12) {
+                    // Icon matching nudge style
+                    ZStack {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.9, green: 0.75, blue: 0.1),
+                                        Color(red: 0.85, green: 0.65, blue: 0.05)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    
+                    // Content matching nudge style
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Weekly Summary:")
+                            .font(.system(size: 14, weight: .semibold, design: .default))
+                            .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.05))
+                        
+                        if let summary = summaryEngine.currentWeeklySummary {
+                            Text("\(formatDate(summary.weekStartDate)) - \(formatDate(summary.weekEndDate))")
+                                .font(.system(size: 16, weight: .medium, design: .default))
+                                .foregroundColor(Color(UIColor.label))
+                                .lineSpacing(2)
+                        } else {
+                            Text("Your growth journey this week is ready to explore")
+                                .font(.system(size: 16, weight: .medium, design: .default))
+                                .foregroundColor(Color(UIColor.label))
+                                .lineSpacing(2)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Arrow button
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 24, weight: .regular))
+                        .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.05))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    ZStack {
+                        // White base like nudge cards
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.white)
+                        
+                        // Golden gradient overlay
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.9, green: 0.75, blue: 0.1).opacity(0.08),
+                                        Color(red: 0.85, green: 0.65, blue: 0.05).opacity(0.05),
+                                        Color(red: 0.9, green: 0.75, blue: 0.1).opacity(0.03),
+                                        Color.white
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(UIColor.separator).opacity(0.1), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Badge below the card like nudge timer
+            if summaryEngine.hasNewWeeklySummary {
+                Text("NEW THIS WEEK")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(Color(red: 0.85, green: 0.65, blue: 0.05))
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
     }
     
     private var dangerZoneSection: some View {
@@ -458,13 +579,11 @@ class ProfileViewModel: ObservableObject {
     private func loadUserStats() {
         Task {
             do {
-                // TODO: Implement fetchUserStats in BackendClient
-                // let stats = try await backendClient.fetchUserStats()
+                let stats = try await backendClient.fetchUserStats()
                 DispatchQueue.main.async {
-                    // Using mock data for now
-                    self.reflectionCount = 42
-                    self.insightCount = 28
-                    self.streakDays = 7
+                    self.reflectionCount = stats.totalReflections
+                    self.insightCount = stats.totalInsights
+                    self.streakDays = stats.currentStreak
                     
                     let formatter = DateFormatter()
                     formatter.dateFormat = "MMMM yyyy"
@@ -472,6 +591,12 @@ class ProfileViewModel: ObservableObject {
                 }
             } catch {
                 print("Failed to load user stats: \(error)")
+                // Fallback to default values
+                DispatchQueue.main.async {
+                    self.reflectionCount = 0
+                    self.insightCount = 0
+                    self.streakDays = 0
+                }
             }
         }
     }

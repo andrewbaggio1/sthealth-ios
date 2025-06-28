@@ -9,15 +9,16 @@ import SwiftUI
 
 // Defines the tabs for type-safe, programmatic navigation.
 enum AppTab {
-    case capture, workshop, atlas
+    case capture, compass, atlas
 }
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedTab: AppTab = .capture
     @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var workshopManager = WorkshopManager.shared
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    
+    private let analyticsTracker = AnalyticsTracker.shared
     
     // Customize the appearance of the tab bar with glass effects.
     init() {
@@ -47,7 +48,7 @@ struct ContentView: View {
     
     var body: some View {
         Group {
-            if !hasCompletedOnboarding || !authManager.isAuthenticated {
+            if !hasCompletedOnboarding {
                 OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
                     .onAppear {
                         print("🔍 ContentView: Showing onboarding. hasCompletedOnboarding: \(hasCompletedOnboarding), isAuthenticated: \(authManager.isAuthenticated)")
@@ -63,11 +64,11 @@ struct ContentView: View {
                             print("🎉 ContentView: Showing main app. hasCompletedOnboarding: \(hasCompletedOnboarding), isAuthenticated: \(authManager.isAuthenticated)")
                         }
                     
-                    WorkshopView()
+                    CompassView()
                         .tabItem {
-                            Label("Workshop", systemImage: "hammer.fill")
+                            Label("Compass", systemImage: "location.north.circle.fill")
                         }
-                        .tag(AppTab.workshop)
+                        .tag(AppTab.compass)
 
                     PsycheSpaceView()
                         .tabItem {
@@ -75,13 +76,23 @@ struct ContentView: View {
                         }
                         .tag(AppTab.atlas)
                 }
+                .onChange(of: selectedTab) { oldTab, newTab in
+                    analyticsTracker.track(.tabChanged(
+                        from: String(describing: oldTab),
+                        to: String(describing: newTab)
+                    ))
+                }
                 .tint(.primaryAccent)
                 .background(Color.primaryBackground)
-                .sheet(isPresented: $workshopManager.showWorkshopView) {
-                    NewWorkshopView()
-                }
             }
         }
         .environmentObject(authManager)
+        .onAppear {
+            // Check if user has onboarding completed but is authenticated
+            if hasCompletedOnboarding && !authManager.isAuthenticated {
+                // Reset onboarding state for logged out users
+                hasCompletedOnboarding = false
+            }
+        }
     }
 }

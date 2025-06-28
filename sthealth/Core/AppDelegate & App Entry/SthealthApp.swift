@@ -40,10 +40,19 @@ struct SthealthApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     private let backendClient = BackendClient.shared
+    private let analyticsTracker = AnalyticsTracker.shared
+    private let weeklySummaryEngine = WeeklySummaryEngine.shared
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         requestNotificationPermissions()
+        
+        // Start analytics session
+        analyticsTracker.startSession()
+        
+        // Initialize weekly summary engine
+        _ = weeklySummaryEngine
+        
         return true
     }
     

@@ -33,6 +33,7 @@ class ReflectionInputViewModel: ObservableObject {
     // Backend client
     private let backendClient = BackendClient.shared
     private let engagementTracker = EngagementTracker.shared
+    private let analyticsTracker = AnalyticsTracker.shared
     
     // Track reflection timing
     private var reflectionStartTime: Date?
@@ -94,6 +95,7 @@ class ReflectionInputViewModel: ObservableObject {
                 if text.count == 1 && self?.reflectionStartTime == nil {
                     // First character typed - start timing
                     self?.reflectionStartTime = Date()
+                    self?.analyticsTracker.track(.reflectionStarted(method: "text"))
                 }
             }
             .store(in: &cancellables)
@@ -150,6 +152,9 @@ class ReflectionInputViewModel: ObservableObject {
             recordingPulse = true
             lastInputMethod = .voice
             
+            // Track analytics
+            analyticsTracker.track(.voiceRecordingStarted)
+            
             // Start timer
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
                 Task { @MainActor in
@@ -165,17 +170,21 @@ class ReflectionInputViewModel: ObservableObject {
     func stopRecording() {
         guard isRecording else { return }
         
-        // Stop speech recognition
-        stopSpeechRecognition()
+        // Track recording duration
+        let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
+        analyticsTracker.track(.voiceRecordingStopped(duration: duration))
+        
+        // Update UI immediately
+        isRecording = false
+        recordingPulse = false
+        recordingDuration = 0
         
         // Stop timer
         recordingTimer?.invalidate()
         recordingTimer = nil
         
-        // Update UI
-        isRecording = false
-        recordingPulse = false
-        recordingDuration = 0
+        // Stop speech recognition
+        stopSpeechRecognition()
     }
     
     private func updateRecordingDuration() {
@@ -266,6 +275,8 @@ class ReflectionInputViewModel: ObservableObject {
                 } else {
                     lastInputMethod = .image
                 }
+                // Track analytics
+                analyticsTracker.track(.imageAdded)
             }
         } catch {
             errorMessage = "Failed to load image: \(error.localizedDescription)"
@@ -281,11 +292,20 @@ class ReflectionInputViewModel: ObservableObject {
         } else {
             lastInputMethod = .text
         }
+        // Track analytics
+        analyticsTracker.track(.imageRemoved)
     }
     
     // MARK: - Submission
     func submitReflection() {
         guard canSubmit && !isSubmitting else { return }
+        
+        // Check if authenticated
+        guard backendClient.isAuthenticated else {
+            errorMessage = "Not authenticated. Please restart the app."
+            print("❌ Cannot submit reflection: Not authenticated")
+            return
+        }
         
         isSubmitting = true
         clearError()
@@ -323,7 +343,9 @@ class ReflectionInputViewModel: ObservableObject {
                 )
                 
                 // Submit to backend
+                print("📤 Submitting reflection with payload: \(payload)")
                 let response = try await backendClient.submitDataPoints([dataPoint])
+                print("✅ Reflection submitted successfully: \(response.first?.id ?? "no ID")")
                 
                 // Track engagement for reflection completion
                 engagementTracker.trackReflectionEntry(
@@ -333,15 +355,23 @@ class ReflectionInputViewModel: ObservableObject {
                     inputMethod: determineInputMethod()
                 )
                 
-                // Success - clear form
+                // Track analytics
+                analyticsTracker.track(.reflectionCompleted(
+                    wordCount: wordCount,
+                    duration: reflectionDuration,
+                    method: determineInputMethod()
+                ))
+                
+                // Success - clear form and reset timing
                 await MainActor.run {
                     clearForm()
-                    // Could show success message here
+                    reflectionStartTime = nil
                 }
                 
             } catch {
+                print("❌ Reflection submission error: \(error)")
                 await MainActor.run {
-                    errorMessage = "Failed to submit reflection: \(error.localizedDescription)"
+                    errorMessage = "Failed to save reflection: \(error.localizedDescription)"
                     isSubmitting = false
                 }
             }
@@ -367,6 +397,7 @@ class ReflectionInputViewModel: ObservableObject {
         selectedImageData = nil
         isSubmitting = false
         lastInputMethod = .text
+        errorMessage = nil
         
         // Stop recording if active
         if isRecording {

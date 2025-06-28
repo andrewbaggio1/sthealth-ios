@@ -9,6 +9,7 @@ struct CaptureView: View {
     @StateObject private var workshopEngine = IntelligentWorkshopEngine.shared
     @State private var showProfile = false
     @State private var workshopHypothesis: Hypothesis?
+    @State private var showWorkshopSheet = false
     
     // Get user name from UserDefaults
     private var userName: String {
@@ -38,27 +39,44 @@ struct CaptureView: View {
                     
                     // Main content with nudge integration
                     NudgeContainer {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 32) {
                             // Top - Glassy notepad reflection area
                             GlassyNotepadView(viewModel: reflectionViewModel)
-                                .frame(height: geometry.size.height * 0.45)
                                 .padding(.horizontal, 20)
+                                .padding(.bottom, 16)  // Add extra padding to move it up from cards
                             
                             // Bottom - Stacked cards with proper sizing
-                            VStack(spacing: 12) {
-                                CardStackView(viewModel: viewModel, onWorkshopTrigger: { hypothesis in
-                                    workshopHypothesis = hypothesis
-                                })
-                                .frame(height: 220)  // Smaller height to fit screen better
-                                .padding(.horizontal, 20)
-                                
-                                // Swipe indicators below the deck
-                                SwipeIndicatorView()
-                            }
+                            // Cards with dynamic height based on available space
+                            CardStackView(viewModel: viewModel, onWorkshopTrigger: { hypothesis in
+                                workshopHypothesis = hypothesis
+                            })
+                            .frame(height: min(340, geometry.size.height * 0.45))  // Adjusted for smaller cards
                         }
                     }
                     
-                    Spacer(minLength: 20)
+                    Spacer(minLength: 10)
+                }
+                
+                // Floating Action Button for Workshop
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: { showWorkshopSheet = true }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.primaryAccent)
+                                    .frame(width: 56, height: 56)
+                                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                                
+                                Image(systemName: "hammer.fill")
+                                    .font(.system(size: 24, weight: .medium))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
+                    }
                 }
             }
         }
@@ -68,12 +86,22 @@ struct CaptureView: View {
         .sheet(item: $workshopHypothesis) { hypothesis in
             IntelligentWorkshopView(hypothesis: hypothesis)
         }
+        .sheet(isPresented: $showWorkshopSheet) {
+            WorkshopView()
+        }
         .onAppear {
             viewModel.fetchHypotheses()
             reflectionViewModel.requestPermissions()
             
             // Check for nudge opportunity when user opens app
             nudgeEngine.checkForNudgeOpportunity()
+            
+            // Force show nudge for testing (temporary)
+            #if DEBUG
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                nudgeEngine.forceShowNudge()
+            }
+            #endif
         }
         .onChange(of: workshopEngine.isSessionActive) { _, isActive in
             // Close workshop sheet when session ends
@@ -122,19 +150,30 @@ struct GlassyNotepadView: View {
     
     var body: some View {
         ZStack {
-            // Apple Glass notepad background
+            // Apple Glass notepad background with higher opacity
             ZStack {
-                GlassStyle.glassCard(cornerRadius: GlassStyle.cornerRadius)
+                // More opaque background
+                RoundedRectangle(cornerRadius: GlassStyle.cornerRadius)
+                    .fill(Color.white.opacity(0.8))
+                    .background(
+                        RoundedRectangle(cornerRadius: GlassStyle.cornerRadius)
+                            .fill(GlassMaterial.secondary)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: GlassStyle.cornerRadius)
+                            .stroke(.white.opacity(0.3), lineWidth: GlassStyle.borderWidth)
+                    )
+                    .shadow(color: .glassShadow, radius: GlassStyle.shadowRadius, x: GlassStyle.shadowOffset.width, y: GlassStyle.shadowOffset.height)
                 
                 // Subtle glass highlight effect
                 RoundedRectangle(cornerRadius: GlassStyle.cornerRadius)
                     .fill(
                         LinearGradient(
                             colors: [
-                                .glassHighlight,
+                                .glassHighlight.opacity(0.3),
                                 .clear,
                                 .clear,
-                                .glassSurface
+                                .glassSurface.opacity(0.2)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -143,56 +182,43 @@ struct GlassyNotepadView: View {
             }
             
             VStack(spacing: 0) {
-                // Main text area
-                VStack(alignment: .leading, spacing: 8) {
-                    if !viewModel.reflectionText.isEmpty || isTextFieldFocused {
-                        HStack {
-                            Text("Reflection")
-                                .font(.appleCaption)
-                                .foregroundColor(.tertiaryText)
-                                .fontWeight(.medium)
-                            Spacer()
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                // Reflection label at the very top
+                HStack {
+                    Text("Reflection")
+                        .font(.appleCaption)
+                        .foregroundColor(.tertiaryText)
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+                
+                // Text input area
+                ZStack(alignment: .topLeading) {
+                    // Placeholder when empty and not focused
+                    if viewModel.reflectionText.isEmpty && !isTextFieldFocused {
+                        Text("Start writing your thoughts...")
+                            .font(.appleBody)
+                            .foregroundColor(.quaternaryText)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 2)
                     }
                     
-                    ZStack(alignment: .topLeading) {
-                        // Placeholder when empty and not focused
-                        if viewModel.reflectionText.isEmpty && !isTextFieldFocused {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Start writing your thoughts...")
-                                    .font(.appleBody)
-                                    .foregroundColor(.quaternaryText)
-                                    .padding(.top, 8)
-                                
-                                Spacer()
-                                
-                                // Apple-style line guides with glass theme
-                                VStack(spacing: 28) {
-                                    ForEach(0..<5, id: \.self) { _ in
-                                        Rectangle()
-                                            .fill(Color.glassBorder)
-                                            .frame(height: 0.5)
-                                    }
-                                }
-                                .opacity(0.4)
-                            }
-                        }
-                        
-                        // Text editor
-                        TextEditor(text: $viewModel.reflectionText)
-                            .font(.appleBody)
-                            .focused($isTextFieldFocused)
-                            .scrollContentBackground(.hidden)
-                            .background(Color.clear)
-                            .foregroundColor(.primaryText)
-                            .tint(.primaryAccent)
-                    }
+                    // Text editor with dynamic height
+                    TextEditor(text: $viewModel.reflectionText)
+                        .font(.appleBody)
+                        .focused($isTextFieldFocused)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                        .foregroundColor(.primaryText)
+                        .tint(.primaryAccent)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: viewModel.reflectionText.isEmpty ? 40 : 35, maxHeight: 80)
+                        .fixedSize(horizontal: false, vertical: !viewModel.reflectionText.isEmpty)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
                 
-                Spacer()
+                Spacer(minLength: 4)
                 
                 // Action bar at bottom
                 HStack(spacing: 16) {
@@ -204,37 +230,47 @@ struct GlassyNotepadView: View {
                             viewModel.startRecording()
                         }
                     }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: viewModel.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(viewModel.isRecording ? .errorAccent : .primaryAccent)
-                            
-                            if viewModel.isRecording {
+                        if viewModel.isRecording {
+                            HStack(spacing: 8) {
+                                Image(systemName: "stop.circle.fill")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.errorAccent)
+                                
                                 Text("\(viewModel.recordingDuration, specifier: "%.0f")s")
                                     .font(.appleFootnote)
                                     .fontWeight(.medium)
                                     .foregroundColor(.errorAccent)
                             }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(GlassMaterial.secondary)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.glassBorder, lineWidth: 0.5)
+                            )
+                        } else {
+                            Image(systemName: "mic.circle.fill")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.primaryAccent)
+                                .frame(width: 44, height: 44)
+                                .background(GlassMaterial.secondary)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.glassBorder, lineWidth: 0.5)
+                                )
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(GlassMaterial.secondary)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.glassBorder, lineWidth: 0.5)
-                        )
                     }
                     .scaleEffect(viewModel.isRecording ? 1.05 : 1.0)
-                    .animation(AppAnimation.glass, value: viewModel.isRecording)
+                    .animation(AppAnimation.smooth, value: viewModel.isRecording)
                     
                     // Image upload button
                     PhotosPicker(selection: $viewModel.selectedPhoto, matching: .images) {
                         Image(systemName: "photo.circle.fill")
                             .font(.system(size: 18, weight: .medium))
                             .foregroundColor(.primaryAccent)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
+                            .frame(width: 44, height: 44)
                             .background(GlassMaterial.secondary)
                             .clipShape(Circle())
                             .overlay(
@@ -262,7 +298,7 @@ struct GlassyNotepadView: View {
                                 .fontWeight(.semibold)
                         }
                         .foregroundColor(viewModel.canSubmit ? .white : .quaternaryText)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, viewModel.isSubmitting ? 24 : 20)
                         .padding(.vertical, 12)
                         .background(
                             Capsule()
@@ -274,11 +310,14 @@ struct GlassyNotepadView: View {
                         )
                     }
                     .disabled(!viewModel.canSubmit || viewModel.isSubmitting)
-                    .scaleEffect(viewModel.canSubmit ? 1.0 : 0.96)
-                    .animation(AppAnimation.glass, value: viewModel.canSubmit)
+                    .opacity(viewModel.canSubmit ? 1.0 : 0.8)
+                    .scaleEffect(viewModel.canSubmit && !viewModel.isSubmitting ? 1.0 : 0.98)
+                    .animation(AppAnimation.fluid, value: viewModel.canSubmit)
+                    .animation(AppAnimation.fluid, value: viewModel.isSubmitting)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 16)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .padding(.top, 4)
                 
                 // Recording indicator
                 if viewModel.isRecording {
@@ -287,7 +326,7 @@ struct GlassyNotepadView: View {
                             .fill(Color.errorAccent)
                             .frame(width: 6, height: 6)
                             .scaleEffect(viewModel.recordingPulse ? 1.3 : 0.8)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: viewModel.recordingPulse)
+                            .animation(viewModel.isRecording ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default, value: viewModel.recordingPulse)
                         
                         Text("Listening...")
                             .font(.appleCaption)
@@ -314,9 +353,9 @@ struct GlassyNotepadView: View {
                 }
             }
         }
-        .animation(AppAnimation.glass, value: isTextFieldFocused)
-        .animation(AppAnimation.fluid, value: viewModel.isRecording)
+        .animation(AppAnimation.smooth, value: viewModel.isRecording)
         .animation(AppAnimation.smooth, value: viewModel.errorMessage != nil)
+        .animation(AppAnimation.smooth, value: isTextFieldFocused)
     }
 }
 
@@ -362,18 +401,60 @@ struct CardStackView: View {
     }
     
     private var cardStackContent: some View {
-        ForEach(Array(viewModel.hypotheses.enumerated().reversed()), id: \.element.id) { index, hypothesis in
-            let cardIndex = viewModel.hypotheses.count - 1 - index
-            let isTopCard = cardIndex == viewModel.hypotheses.count - 1
+        ZStack(alignment: .center) {
+            // Navigation indicators for top card
+            if !viewModel.hypotheses.isEmpty {
+                // Workshop indicator above cards
+                VStack(spacing: 6) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                    Text("workshop")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.tertiaryText)
+                }
+                .offset(y: -180) // Position well above cards
+                .zIndex(1001)
+                
+                // Left/right indicators aligned with card middle
+                HStack(spacing: 0) {
+                    // Left X - Red
+                    Image(systemName: "xmark")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color(UIColor.systemRed))
+                        .padding(12)
+                        .background(Circle().fill(Color.glassSurface))
+                        .overlay(Circle().stroke(Color.glassBorder, lineWidth: 0.5))
+                        .offset(x: -10) // Move left
+                    
+                    Spacer()
+                    
+                    // Right checkmark - Green
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color(UIColor.systemGreen))
+                        .padding(12)
+                        .background(Circle().fill(Color.glassSurface))
+                        .overlay(Circle().stroke(Color.glassBorder, lineWidth: 0.5))
+                        .offset(x: 10) // Move right
+                }
+                .frame(width: UIScreen.main.bounds.width - 40)
+                .zIndex(1000)
+            }
+            
+            ForEach(Array(viewModel.hypotheses.prefix(4).enumerated().reversed()), id: \.element.id) { index, hypothesis in
+            let displayCount = min(viewModel.hypotheses.count, 4)
+            let cardIndex = displayCount - 1 - index
+            let isTopCard = index == 0
             
             SynapseCardView(hypothesis: hypothesis)
-                .scaleEffect(isTopCard ? 1.0 : 0.95 - Double(index) * 0.02)
+                .scaleEffect(isTopCard ? 1.0 : max(0.85, 0.95 - Double(index) * 0.02))
                 .offset(
                     x: isTopCard ? dragOffset.width : 0,
-                    y: isTopCard ? dragOffset.height * 0.1 : CGFloat(index) * 3
+                    y: isTopCard ? dragOffset.height * 0.1 : CGFloat(index) * 8
                 )
-                .rotationEffect(.degrees(isTopCard ? Double(dragOffset.width / 20) : 0))
-                .opacity(isTopCard ? 1.0 : 0.8 - Double(index) * 0.1)
+                .rotationEffect(.degrees(isTopCard ? min(max(Double(dragOffset.width / 20), -45), 45) : 0))
+                .opacity(isTopCard ? 1.0 : max(0.3, 0.8 - Double(index) * 0.1))
                 .zIndex(Double(cardIndex))
                 .gesture(
                     isTopCard ? DragGesture()
@@ -389,7 +470,9 @@ struct CardStackView: View {
                         } : nil
                 )
                 .animation(AppAnimation.glass, value: dragOffset)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var emptyStateView: some View {
@@ -425,7 +508,8 @@ struct CardStackView: View {
     }
     
     private func handleSwipeGesture(_ value: DragGesture.Value, for hypothesis: Hypothesis) {
-        let threshold: CGFloat = 80
+        let horizontalThreshold: CGFloat = 80
+        let verticalThreshold: CGFloat = 100
         let velocity = CGSize(
             width: value.predictedEndLocation.x - value.location.x,
             height: value.predictedEndLocation.y - value.location.y
@@ -434,24 +518,22 @@ struct CardStackView: View {
         // Calculate hesitation time
         let hesitationTime = dragStartTime.map { Date().timeIntervalSince($0) } ?? 0
         
-        if abs(value.translation.width) > threshold || abs(velocity.width) > 500 {
+        // Check for upward swipe first (workshop)
+        if value.translation.height < -verticalThreshold || velocity.height < -500 {
+            // Swipe up - Trigger workshop
+            onWorkshopTrigger(hypothesis)
+            viewModel.deepSwipeRight(hypothesis: hypothesis) // Using existing method for workshop
+            animateCardExit(.top)
+        } else if abs(value.translation.width) > horizontalThreshold || abs(velocity.width) > 500 {
             // Record final decision with hesitation time
             if hesitationTime > 2.0 {  // More than 2 seconds = significant hesitation
                 viewModel.recordCardHesitation(hypothesis: hypothesis, hesitationTime: hesitationTime)
             }
             
             if value.translation.width > 0 {
-                // Check if it's a deep swipe right for workshop
-                if abs(value.translation.width) > threshold * 2 || abs(velocity.width) > 1000 {
-                    // Deep swipe right - Trigger workshop
-                    onWorkshopTrigger(hypothesis)
-                    viewModel.deepSwipeRight(hypothesis: hypothesis)
-                    animateCardExit(.trailing)
-                } else {
-                    // Regular swipe right - Yes
-                    viewModel.swipeRight(hypothesis: hypothesis)
-                    animateCardExit(.trailing)
-                }
+                // Swipe right - Yes
+                viewModel.swipeRight(hypothesis: hypothesis)
+                animateCardExit(.trailing)
             } else {
                 // Swipe left - No
                 viewModel.swipeLeft(hypothesis: hypothesis)
@@ -478,10 +560,11 @@ struct CardStackView: View {
     }
     
     private func animateCardExit(_ edge: Edge) {
-        let exitOffset: CGFloat = edge == .leading ? -400 : 400
+        let exitOffset: CGFloat = edge == .leading ? -400 : (edge == .trailing ? 400 : 0)
+        let verticalOffset: CGFloat = edge == .top ? -600 : -100
         
         withAnimation(AppAnimation.smooth) {
-            dragOffset = CGSize(width: exitOffset, height: -100)
+            dragOffset = CGSize(width: exitOffset, height: verticalOffset)
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -494,30 +577,14 @@ struct CardStackView: View {
 // MARK: - Swipe Indicator View
 struct SwipeIndicatorView: View {
     var body: some View {
-        HStack(spacing: 20) {
-            // Left arrow (no)
-            Image(systemName: "arrow.left")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.tertiaryText)
-            
-            Spacer()
-            
-            // Center "swipe" text
-            Text("swipe")
-                .font(.appleSubheadline)
+        HStack(spacing: 16) {
+            Text("swipe to decide")
+                .font(.appleCaption)
                 .fontWeight(.medium)
-                .foregroundColor(.tertiaryText)
-                .opacity(0.7)
-            
-            Spacer()
-            
-            // Right arrow (yes)
-            Image(systemName: "arrow.right")
-                .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.tertiaryText)
+                .foregroundColor(.quaternaryText)
+                .opacity(0.6)
         }
-        .padding(.horizontal, 50)
-        .padding(.vertical, 16)
+        .padding(.vertical, 8)
     }
 }
 

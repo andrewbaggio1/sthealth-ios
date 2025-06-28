@@ -28,7 +28,7 @@ enum PsychologicalFramework: String, CaseIterable, Codable {
 }
 
 enum NudgeResponse: String, Codable {
-    case acknowledged = "acknowledged"
+    case hearted = "hearted"
     case ignored = "ignored"
     case timeout = "timeout"
 }
@@ -91,10 +91,14 @@ final class NudgeEngine: ObservableObject {
     private let cognitiveEngine = CognitiveEngine.shared
     private let engagementTracker = EngagementTracker.shared
     private let backendClient = BackendClient.shared
+    private let analyticsTracker = AnalyticsTracker.shared
+    
+    // Track nudge display time
+    private var nudgeShownTime: Date?
     
     // Nudge delivery constraints
     private let minimumTimeBetweenNudges: TimeInterval = 24 * 60 * 60  // 24 hours
-    private let nudgeDisplayDuration: TimeInterval = 5 * 60           // 5 minutes
+    private let nudgeDisplayDuration: TimeInterval = 2 * 60           // 2 minutes
     
     private var nudgeTimer: Timer?
     private var lastNudgeTime: Date? {
@@ -112,16 +116,28 @@ final class NudgeEngine: ObservableObject {
         }
     }
     
-    private func evaluateAndDeliverNudge() async {
+    // Debug method to force show a nudge
+    func forceShowNudge() {
+        Task {
+            await evaluateAndDeliverNudge(forceShow: true)
+        }
+    }
+    
+    private func evaluateAndDeliverNudge(forceShow: Bool = false) async {
+        // Don't show regular nudges if weekly summary is active
+        if WeeklySummaryEngine.shared.hasNewWeeklySummary && !forceShow {
+            return
+        }
+        
         // Check timing constraints
-        guard shouldConsiderNudgeDelivery() else { return }
+        guard forceShow || shouldConsiderNudgeDelivery() else { return }
         
         // Analyze user's current psychological state
         let profile = await buildPsychologicalProfile()
         let recentBehavior = await analyzeRecentBehavior()
         
         // Determine if user is psychologically ready
-        guard isUserReceptive(profile: profile, behavior: recentBehavior) else { return }
+        guard forceShow || isUserReceptive(profile: profile, behavior: recentBehavior) else { return }
         
         // Generate contextual nudge
         if let nudge = await generateIntelligentNudge(profile: profile, behavior: recentBehavior) {
@@ -324,6 +340,7 @@ final class NudgeEngine: ObservableObject {
         
         // Show in app
         currentNudge = deliveredNudge
+        nudgeShownTime = Date()
         withAnimation(AppAnimation.gentle) {
             isNudgeVisible = true
         }
@@ -338,6 +355,9 @@ final class NudgeEngine: ObservableObject {
                 "framework": nudge.framework.rawValue
             ]
         )
+        
+        // Track analytics
+        analyticsTracker.track(.nudgeShown(nudgeType: nudge.type.rawValue, content: nudge.content))
         
         // Send to backend
         await sendNudgeToBackend(deliveredNudge)
@@ -355,8 +375,11 @@ final class NudgeEngine: ObservableObject {
     func acknowledgeNudge() {
         guard var nudge = currentNudge else { return }
         
-        nudge.response = .acknowledged
+        nudge.response = .hearted
         nudge.responseTimestamp = Date()
+        
+        // Calculate time shown
+        let timeShown = nudgeShownTime.map { Date().timeIntervalSince($0) } ?? 0
         
         // Track acknowledgment
         engagementTracker.recordInteraction(
@@ -364,8 +387,12 @@ final class NudgeEngine: ObservableObject {
             item: "nudge_\(nudge.id.uuidString)",
             type: .complete,
             intensity: 1.0,
-            metadata: ["response": "acknowledged"]
+            metadata: ["response": "hearted"]
         )
+        
+        // Track analytics
+        analyticsTracker.track(.nudgeAcknowledged(nudgeType: nudge.type.rawValue, method: "heart", timeShown: timeShown))
+        analyticsTracker.track(.nudgeHearted(nudgeType: nudge.type.rawValue))
         
         // Send response to backend
         Task {
@@ -396,6 +423,9 @@ final class NudgeEngine: ObservableObject {
                     nudge.response = .timeout
                     nudge.responseTimestamp = Date()
                     
+                    // Calculate time shown
+                    let timeShown = self.nudgeShownTime.map { Date().timeIntervalSince($0) } ?? 0
+                    
                     // Track timeout
                     self.engagementTracker.recordInteraction(
                         context: .reflection,
@@ -404,6 +434,9 @@ final class NudgeEngine: ObservableObject {
                         intensity: 0.1,
                         metadata: ["response": "timeout"]
                     )
+                    
+                    // Track analytics
+                    self.analyticsTracker.track(.nudgeIgnored(nudgeType: nudge.type.rawValue, timeShown: timeShown))
                     
                     await self.sendNudgeResponseToBackend(nudge)
                 }
@@ -447,6 +480,12 @@ final class NudgeEngine: ObservableObject {
         let request = UNNotificationRequest(identifier: "nudge_\(nudge.id.uuidString)", content: content, trigger: trigger)
         
         try? await center.add(request)
+    }
+    
+    // MARK: - Special Nudge Delivery
+    
+    func deliverSpecialNudge(_ nudge: Nudge) async {
+        await deliverNudge(nudge)
     }
     
     // MARK: - Backend Integration
